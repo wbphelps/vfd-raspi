@@ -180,10 +180,10 @@ void processSPI(void)
 //				eeprom_write_byte(&b_volume, c);
 			}
 			break;
-		case 0x91: // beep tone/10, time/10
+		case 0x91: // beep tone/10, count
 			c = spi_xfer(0);
 			d = spi_xfer(0);
-			beep(c<<4, d<<4);
+			beep(c*10, d);
 			spi_xfer(1); // signal complete
 			break;
 		case 0x92: // tick
