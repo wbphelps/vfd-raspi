@@ -103,7 +103,7 @@ uint8_t spi_xfer(uint8_t b)
 
 void processSPI(void)
 {
-	uint8_t b, c;
+	uint8_t b, c, d;
 
 	b = spi_xfer(0);
 	
@@ -171,6 +171,24 @@ void processSPI(void)
 			break;
 		case 0x8c: // get display type
 			spi_xfer(get_shield());  
+			break;
+
+			case 0x90: // set volume
+			c = spi_xfer(g_volume);  // send old value back
+			if (c<2) {
+				g_volume = c;
+//				eeprom_write_byte(&b_volume, c);
+			}
+			break;
+		case 0x91: // beep tone/10, time/10
+			c = spi_xfer(0);
+			d = spi_xfer(0);
+			beep(c<<4, d<<4);
+			spi_xfer(1); // signal complete
+			break;
+		case 0x92: // tick
+			tick();
+			spi_xfer(1); // signal complete
 			break;
 
 		default:
@@ -249,7 +267,7 @@ void main(void)
 
 	piezo_init();
 	beep(440, 1);
-	beep(1320, 1);
+	beep(880, 1);
 	beep(440, 1);
 
 	// clear display
