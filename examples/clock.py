@@ -1,12 +1,21 @@
 #!/usr/bin/python
 
-# ===========================================================================
-# SPI Clock Example using hardware SPI with SPIDEV - https://github.com/doceme/py-spidev
-# William B Phelps - wm@usa.net
-# created 16 February 2013
-# updated 25 February 2013 - rewrite piezo/beep
-# updated 28 February 2013 - add support for 6 digit display
-# ===========================================================================
+# ========================================================
+# VFD Modular Clock - Raspberry PI Editiion
+# 
+# (C) 2013 William B Phelps - wm@usa.net
+# (C) 2013 Akafugu Corporation
+#
+#
+# This program is free software; you can redistribute it and/or modify it under the
+# terms of the GNU General Public License as published by the Free Software
+# Foundation; either version 2 of the License, or (at your option) any later
+# version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT ANY
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+# PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+#
 
 import RPi.GPIO as GPIO
 import sched, signal, time
@@ -14,15 +23,26 @@ from datetime import datetime
 from alarmTime import alarmTime
 from vfdspi import *
 
+# GPIO ports used for SPI communication with VFD display - see vfdspi.py
 #CE0  = 8
 #MISO = 9
 #MOSI = 10
 #SCLK = 11
 
+# GPIO ports for buttons and switch
 S1 = 22
 S2 = 27
 S3 = 17  # alarm on/off
 
+GPIO.setmode(GPIO.BCM)
+if hasattr(GPIO, 'setwarnings'):
+	GPIO.setwarnings(False)
+
+GPIO.setup(S1, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(S2, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(S3, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+# Globals
 alarmTime = alarmTime(7*60)
 alarmSet = False # on if setting alarm
 alarmEnabled = False # alarm switch in On position
@@ -30,58 +50,17 @@ alarmOn = False # is alarm beeping?
 
 digits = getDigits() # size of display
 shield = getShield() # shield type
-if (digits == 4):
-	fmtW = '{:>4}'
-elif (digits == 6):
-	fmtW = '{:>6}'
-else:
-	fmtW = '{:>8}'
 
+clock_24h = True # use 24h clock
+autodim = False # Automatic dimming
+timeformat = 0
+region = 0
 regions = ["YMD", "DMY", "MDY"] # possible regions
-region = 0 # ddefault YMD
 
-GPIO.setmode(GPIO.BCM)
-GPIO.setwarnings(False)
-
-GPIO.setup(S1, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-GPIO.setup(S2, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-GPIO.setup(S3, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-	
-print "Raspi VFD test1"
-print "shield " + str(shield) + ", digits " + str(digits)
-print "volume " + str(getVol()) + ", bright " + str(getBrt())
-
-# test beep interaction with SPI
-clear()
-beep(440, 100, False)
-display(0," 440")
-time.sleep(0.2)
-beep(880, 100, False)
-display(0," 880")
-time.sleep(0.2)
-beep(440, 100, False)
-display(0," 440")
-time.sleep(1)
-
-clear()
-scroll(0,"0123456789", 0, 0.2)
-#setDots(0b11111111)
-time.sleep(1)
-for b in range(0,10):
-	setBrt(b)
-	time.sleep(0.2)
-#setDots(0b00110011)
-#time.sleep(1)
-#setDots(0b01010101)
-clear()
-
-#timeString = time.strftime("%I%M")
-#print timeString
-
-# Globals
 S1state = False
 S2state = False
 S3state = False
+
 lastShowTime = datetime.now()
 
 def chkButtons():
@@ -112,9 +91,9 @@ def chkButtons():
 			alarmEnable(False)
 		S3state = st3
 
-menuNames4 = ['', 'alrm', 'brt ', 'regn', 'vol ', 'end ']
-menuNames6 = ['', 'alarm ', 'bright', 'region', 'volume', 'end   ']
-menuNames8 = ['', 'alarm   ', 'bright  ', 'region  ', 'volume  ', 'end     ']
+menuNames4 = ['', 'alrm',     'brt ',     'vol ',     '24h', 'adim',     'regn',      'end ']
+menuNames6 = ['', 'alarm ',   'bright',   'volume',   '24h', 'adim',     'region',    'end   ']
+menuNames8 = ['', 'alarm   ', 'bright  ', 'volume  ', '24h', 'auto dim', 'region  ',  'end     ']
 menuState = 0
 actionState = 0
 menuTime = time.time
@@ -129,55 +108,88 @@ def menuEnd():
 def doMenu():
 	global menuState, menuTime
 	menuState += 1
+	setDots(0b00000000)
+	clear()
+
 	if (digits == 4):
 		display(0,menuNames4[menuState])
 	elif (digits == 6):
 		display(0,menuNames6[menuState])
 	else:
-		setDots(0b00000000)
 		display(0,menuNames8[menuState])
 	if (menuState == len(menuNames4)-1):
 		menuEnd()
 
 def showAlarm():
-	timestr = fmtW.format(alarmTime)
-	display(0,timestr)
-	if (digits == 8): # should really be "has dots"
+	if (digits == 4):
+		timestr = '{:>4}'.format(alarmTime)
+		display(0,timestr)
+	else:
+		timestr = '{:>8}'.format(alarmTime)
+		display(0,timestr)
 		setDots(0b00000100)
-	
+
 def actAlarm(update):
 	global alarmSet, alarmSetCnt, alarmSpeed
 	alarmSetCnt = 0 # reset counter
 	alarmSpeed = 1 # reset speed
 	alarmSet = True
 	showAlarm()
-	
+
 def actBright(update):
 	bright = getBrt()
 	if (update): # not first time here?
 		bright = (bright+1) if (bright<10) else 0
-#	s = '{:>4}'.format(bright)
-	s = fmtW.format(bright)
-	display(0,s)
+	s = '{:>4}'.format(bright)
+	displayJustified(s)
 	setBrt(bright)
+
 def actVol(update):
 	volume = getVol()
 	if (update): # not first time here
-		volume = (volume+8) if (volume < 128) else 0
+		volume = (volume+1) if (volume < 10) else 0
 		setVol(volume)
-	s = fmtW.format(volume)
-	display(0,s)
-	beep(4000, 100)
-def actReg(update):
+	s = '{:>4}'.format(volume)
+	displayJustified(s)
+	beep(440, 100)
+
+def act24h(update):
+	global clock_24h
+	if (update): # not first time here
+		clock_24h = not(clock_24h)
+	clear()
+	if (clock_24h):
+		displayJustified("on")
+	else:
+		displayJustified(" off")
+
+def actAutodim(update):
+	global autodim
+	if (update): # not first time here
+		autodim = not(autodim)
+	clear()
+	if (autodim):
+		displayJustified("on")
+	else:
+		displayJustified("off")
+
+def actRegion(update):
 	global region, regions
 	if (update):
 		region = (region+1)%3
 	s = regions[region].rjust(digits)
 	display(0,s)
+
 def actEnd(update):
 	s = 0 # python nop?
-  
-action = { 1:actAlarm, 2:actBright, 3:actReg, 4:actVol, 5:actEnd}
+
+def toggleTimeFormat():
+	global timeformat
+	timeformat = timeformat + 1
+	if (timeformat > 1):
+		timeformat = 0
+
+action = { 1:actAlarm, 2:actBright, 3:actVol, 4:act24h, 5:actAutodim, 6:actRegion, 7:actEnd}
 
 def doAction():  # S2 pushed
 	global actionState, menuState
@@ -191,7 +203,7 @@ def doAction():  # S2 pushed
 		showDate(datetime.now())
 
 def showDate(now):
-#	now = datetime.now()
+	global region
 	if (region == 0):
 		timestr = '{:%y-%m-%d}'.format(now)
 	elif (region == 1):
@@ -207,7 +219,6 @@ def showDate(now):
 		timestr = '{:%I%M%S}'.format(now) # time
 		scroll(0,timestr, 0, 0.25) # scroll time back in
 	else:
-#		display(0,timestr)
 		setDots(0b00000000) # no dots for date
 		scroll(0,"  " + timestr,0, 0.15) # no padding
 		time.sleep(1.0) # pause briefly
@@ -218,34 +229,64 @@ def showDate(now):
 			setDots(0b00000001)
 		else:
 			setDots(0b00000000)
+			
+def displayTime(now):
+	global timeformat, digits
+	dots = 0
+	if timeformat == 0: # default time format hh:mm / hh:mm:ss
+		if (digits == 4):
+			if (clock_24h):
+				timestr = "{:%H%M}".format(now).lstrip('0')
+			else:
+				timestr = "{:%I%M}".format(now).lstrip('0')
+			if (now.second % 2):
+				dots = 0b00000010
+		elif (digits == 6):
+			if (clock_24h):
+				timestr = "{:%H%M%S}".format(now).lstrip('0')
+			else:
+				timestr = "{:%I%M%S}".format(now).lstrip('0')
+				setIV18Dot(now.hour > 11)			
+			if (now.second % 2):
+				dots = 0b00001010
+		else:
+			if (clock_24h):
+				timestr = "{:%H%M%S}".format(now).lstrip('0')
+			else:
+				timestr = "{:%I%M%S}".format(now).lstrip('0')
+				setIV18Dot(now.hour > 11)
+			# Toggle dots
+			if (now.second % 2):
+				dots = 0b00010101
+			else:
+				dots = 0b00010100
+	elif timeformat == 1: # secondary time format ss / hh-mm-ss
+		if (digits == 4):
+			timestr = "{: %S }".format(now).lstrip('0')
+		elif (digits == 6):
+			if (clock_24h):
+				timestr = "{:%H-%M}".format(now).lstrip('0')
+			else:
+				timestr = "{:%I-%M}".format(now).lstrip('0')
+		elif (digits >= 8):
+			if (clock_24h):
+				timestr = "{:%H-%M-%S}".format(now).lstrip('0')
+			else:
+				timestr = "{:%I-%M-%S}".format(now).lstrip('0')
+				setIV18Dot(now.hour > 11)
+	setDots(dots)
+	displayJustified(timestr)
 
 def showTime(now):
 	global lastShowTime
 	if (now.second != lastShowTime.second): # run once a second
 		lastShowTime = now
-		if (now.second == 56): # show date at 4 seconds before top of minute
+		if (now.second >= 57) and (now.second <= 59): # show date
 			showDate(now)
 		else:
-			if (digits == 4):
-				#timestr = '{:%I%M}'.format(now)
-				timestr = "{:%I%M}".format(now).lstrip('0').rjust(4)
-				display(0,timestr)
-			elif (digits == 6):
-				#timestr = '{:%I%M%S}'.format(now)
-				timestr = "{:%I%M%S}".format(now).lstrip('0').rjust(6)
-				display(0,timestr)
-			else:
-				#timestr = '{:  %I%M%S}'.format(now)
-				timestr = "{:%I%M%S}".format(now).lstrip('0').rjust(8)
-				display(0,timestr)
-				# Toggle dots
-				if (now.second % 2):
-					setDots(0b00010101)
-				else:
-					setDots(0b00010100)
-				setIV18Dot(now.hour > 11)
+			displayTime(now)
 		# adjust brightness according to time
-		if (now.second == 0):  # once a minute
+		if (autodim and now.second == 0):  # once a minute
 			setBrt(2) # dim briefly to show top of minute
 			time.sleep(0.1)
 			if (now.hour < 7) or (now.hour >= 22):
@@ -257,7 +298,10 @@ def showTime(now):
 
 def sayBye():
 	clear()
-	display(0, " bye".ljust(digits))
+	if (digits == 4):
+		display(0, "bye ")
+	else:
+		display(0,"  bye  ")
 	time.sleep(1.0)
 	clear() # clear
 	exit(0)
@@ -338,7 +382,7 @@ while(True):
 	else: # not in menu, show the time
 		now = datetime.now()
 		if (now.second != then.second): # reduce SPI traffic
-			checkAlarm(now) # must come after date/time display (beep bug?) ???
+			checkAlarm(now) # check to see if it's time to sound the alarm
 			then = now # now & then are one
 			if (S2state):
 				showDate(now)

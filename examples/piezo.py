@@ -46,19 +46,27 @@ print "volume " + str(getVol()) + ", bright " + str(getBrt())
 
 #clear()
 
+#setVol(32)
+#beep(4000,500)
+#beep(800,500)
+#time.sleep(1)
+#beep(3500,500)
+#beep(500,500)
+#time.sleep(1)
+
 # values for each note in an octave
 #notes = { 'Cn':0, 'Cs':1, 'Df':1, 'Dn':2, 'Ds':3, 'Ef':3, 'En':4, 'Fn':5, 
 # 'Fs':6, 'Gf':6, 'Gn':7, 'Gs':8, 'Af':8, 'An':9, 'As':10, 'Bf':10, 'Bn':11 }
-Cn=0; Cs=1; Df=1; Dn=2; Ds=3; Ef=3; En=4; Fn=5; Fs=6; Gf=6; Gn=7; Gs=8; Af=8; An=9; As=10; Bf=10; Bn=11
+Cn=0; Cs=1; Df=1; Dn=2; Ds=3; Ef=3; En=4; Ff=4; Fn=5; Fs=6; Gf=6; Gn=7; Gs=8; Af=8; An=9; As=10; Bf=10; Bn=11
 freqs = [ 130.81, 138.59, 146.83, 155.56, 164.81, 174.61, 185.00, 196.00, 207.65, 220.00, 233.08, 246.94]
-tempo = 18
+tempo = 20
 def N(note, octave, timing):
 	global tempo
 #	n = notes[note]
 	n = note
-	f = int(freqs[n]*(2**(octave-5)))
-	t = timing*tempo
-	print note, octave, timing, n, f, t
+	f = int(freqs[n]*(2.0**(octave-3))+0.5)
+	t = int(timing*tempo)
+	print n, f, t
 #	display(0,'{:>8}'.format(f))
 	beep(f, t)
 	time.sleep(4*tempo/1000.0)
@@ -118,10 +126,36 @@ def missimp():
 	N(Gf,7,32), N(Gn,7,32), 
 	PAUSE(16)
 	
+bT = 16
+bO = 5
+def ben1():
+	N(Gs,bO,bT), N(Fs,bO,bT), N(En,bO,bT), N(Bn,bO-1,bT*2)
+def ben2():
+	N(En,bO,bT), N(Gs,bO,bT), N(Fs,bO,bT), N(Bn,bO-1,bT*2)
+def ben3():
+	N(En,bO,bT), N(Fs,bO,bT), N(Gs,bO,bT), N(En,bO,bT*2)
+def ben4():
+	N(Gs,bO,bT), N(En,bO,bT), N(Fs,bO,bT), N(Bn,bO-1,bT*2)
+def ben5():
+	N(Bn,bO-1,bT), N(Fs,bO,bT), N(Gs,bO,bT), N(En,bO,bT*2)
 
-setVol(128) # loud
+setVol(127) # loud
 #BigBen()
 #xmas()
 #reveille()
-
-missimp()
+#missimp()
+ben1()
+time.sleep(1)
+ben2(), ben3()
+time.sleep(1)
+ben4(), ben5(), ben1()
+time.sleep(1)
+ben2(), ben3(), ben4(), ben5()
+time.sleep(2)
+N(En,bO-1,bT*4)
+time.sleep(1)
+N(En,bO-1,bT*4)
+#time.sleep(1)
+#N(En,bO-1,bT*4)
+#time.sleep(1)
+#N(En,bO-1,bT*4)

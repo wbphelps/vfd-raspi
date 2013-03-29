@@ -5,6 +5,7 @@
 # William B Phelps - wm@usa.net
 # created 20 February 2013
 # updated 25 February 2013 - redo scroll
+
 # ===========================================================================
 
 import time
@@ -50,6 +51,18 @@ def getShield():
 	SPI(0x8C) # request shield
 	b = SPI(0)
 	return b
+def getShieldStr():
+	b = getShield()
+	if b == 1:
+		return "IV-6"
+	elif b == 2:
+		return "IV17"
+	elif b == 3:
+		return "IV18"
+	elif b == 4:
+		return "IV22"
+	else:
+		return "none"
 def setDots(d):
 	SPI(0x85)  # dots
 	SPI(d)
@@ -91,7 +104,6 @@ def tick():
 	SPI(0x93)  # tick the speaker
 	b1 = 0
 	time.sleep(0.020) # tick takes time
-
 def setScroll(s):
 	SPI(0x83)  # set scroll mode
 	SPI(s)  # set new value
@@ -99,6 +111,11 @@ def display(pos, str):
 	setScroll(0)
 	setPos(pos)
 	SPIwrite(str)
+def displayJustified(str):
+	digits = getDigits()
+	if (digits == 9):
+		digits = 8
+	display(0, str.rjust(digits))
 def scroll(pos, str, pad=0, dly=0.2):
 	setScroll(1)
 #	d = getDigits()
